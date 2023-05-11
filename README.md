@@ -1,31 +1,32 @@
-# Stored Procedure `sp_migracao`
+CREATE `sp_migracao`(
+	IN value VARCHAR(255),
+	IN field_ VARCHAR(255), 
+	IN field_complement VARCHAR(255),
+	IN value_complement VARCHAR(255),
+	IN table_name VARCHAR(40)
+	)
+BEGIN
+	DECLARE min_id INT;
 
-A `sp_migracao` é uma Stored Procedure utilizada para auxiliar na migração de dados novos para o banco de dados. Ela trará o primeiro ID do valor especificado na tabela, caso não exista, ele irá inserir e trazer a informação, assim auxiliando na inserção de valores novos em chaves estrangeiras.
+	SET @sql = CONCAT('SELECT MIN(id) INTO @min_id FROM ', table_name, ' WHERE UPPER(TRIM(REGEXP_REPLACE(', field_, ', '' +'', '' ''))) = UPPER(TRIM(REGEXP_REPLACE(''', value, ''', '' +'', '' '')));');
+	PREPARE stmt FROM @sql;
+    EXECUTE stmt;
+	SELECT  @min_id into min_id;
+    DEALLOCATE PREPARE stmt;
 
-## Parâmetros
-
-- `valor`: valor que se deseja buscar na tabela especificada.
-- `campo`: campo da tabela onde se deseja buscar o valor especificado.
-- `campo_complemento`: campo complementar ao `campo` utilizado para a inserção na tabela em caso de não encontrar o valor.
-- `valor_complemento`: valor complementar ao `campo_complemento` utilizado para a inserção na tabela em caso de não encontrar o valor.
-- `tabela_nome`: nome da tabela onde se deseja buscar o valor especificado.
-
-## Funcionamento
-
-A Stored Procedure utiliza a cláusula `REGEXP_REPLACE` para substituir os caracteres `+` por espaços em branco, além de `UPPER` e `TRIM` para normalizar os valores na busca e inserção.
-
-Em seguida, utiliza a cláusula `PREPARE` para preparar a query SQL concatenando os valores passados como parâmetros.
-
-Executa a query com `EXECUTE` e recupera o `id` mínimo encontrado na tabela com a cláusula `SELECT`.
-
-Caso o `id` não seja encontrado, a Stored Procedure prepara e executa uma query SQL de inserção na tabela, novamente utilizando a cláusula `PREPARE`.
-
-Por fim, a Stored Procedure recupera o `id` mínimo encontrado na tabela após a inserção e o retorna como resultado da Stored Procedure.
-
-## Exemplo de uso
-
-```mysql
-CALL sp_migracao('John Doe', 'nome', ', sobrenome', 'Doe', 'usuarios');
-```
-
-O exemplo acima busca pelo valor `'John Doe'` no campo `'nome'` da tabela `'usuarios'`. Caso não encontre, a Stored Procedure insere o registro com o valor complementar `', sobrenome'` igual a `'Doe'`. Retorna o `id` mínimo encontrado ou inserido na tabela `'usuarios'`.
+	IF min_id IS NULL THEN
+		
+		set @sql = CONCAT('INSERT INTO ', table_name, ' (',field_ ,field_complement ,') VALUES(UPPER(TRIM(REGEXP_REPLACE(''', value, ''', '' +'', '' '')))' , value_complement, ''' );');
+		PREPARE stmt FROM @sql;
+		EXECUTE stmt;
+		DEALLOCATE PREPARE stmt;
+		
+		SET @sql = CONCAT('SELECT MIN(id) INTO @min_id FROM ', table_name, ' WHERE UPPER(TRIM(REGEXP_REPLACE(', field_, ', '' +'', '' ''))) = UPPER(TRIM(REGEXP_REPLACE(''', value, ''', '' +'', '' '')));');
+		PREPARE stmt FROM @sql;
+	    EXECUTE stmt;
+		SELECT  @min_id into min_id;
+	    DEALLOCATE PREPARE stmt;
+	END IF;
+  
+   SELECT min_id;
+END
